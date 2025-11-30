@@ -142,3 +142,24 @@ Clean, modern look similar to top-tier AI apps
   *Admin dashboard
 
   *Multi-language support
+
+
+
+  Installation & Running Locally
+1. Clone the repository:
+      git clone https://github.com/ummehani0531/knowledge-base-agent.git
+      cd knowledge-base-agent
+
+
+2. Create a virtual environment :
+      python3 -m venv env
+      source env/bin/activate
+
+3.Install dependencies:
+      pip install -r requirements.txt
+
+4.Add your Gemini API key :
+       API_KEY = "YOUR_API_KEY"
+
+5.Run the app:
+       streamlit run app.py       
