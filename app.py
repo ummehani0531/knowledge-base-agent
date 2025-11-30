@@ -1,103 +1,154 @@
 import streamlit as st
 import chromadb
-from chromadb.utils import embedding_functions
 from pypdf import PdfReader
 from google import genai
 
 # ================================
-# API KEY
+# 🔐 LOAD API KEY FROM SECRETS
 # ================================
 API_KEY = st.secrets["API_KEY"]
 
-# ---- PAGE CONFIG ----
-st.set_page_config(page_title="Knowledge Base Assistant", layout="wide")
-
-# ---- INITIAL STATE ----
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# ---- TITLE ----
-st.markdown("<h1 style='text-align:center;'>📚 Knowledge Base Assistant</h1>", unsafe_allow_html=True)
-
-# ---- SIDEBAR ----
-st.sidebar.header("📄 Upload Documents")
-uploaded_files = st.sidebar.file_uploader("Upload PDF or TXT", accept_multiple_files=True)
-
-# ---- GEMINI CLIENT ----
+# Initialize Gemini client
 client = genai.Client(api_key=API_KEY)
 
-# ---- GEMINI EMBEDDINGS ----
-def embed_text(text):
-    emb = client.models.embed_content(
+# ================================
+# 🔥 EMBEDDING FUNCTION (NO TORCH)
+# ================================
+def embed_text(text: str):
+    response = client.models.embed_content(
         model="models/text-embedding-004",
         content=text
     )
-    return emb.embedding
+    return response.embedding
 
-# ---- VECTOR DB ----
+
+# ================================
+# STREAMLIT UI
+# ================================
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+st.set_page_config(page_title="Knowledge Base Assistant", layout="wide")
+
+st.markdown("<h1 style='text-align: center;'>📚 Knowledge Base Assistant</h1>", 
+            unsafe_allow_html=True)
+
+# Sidebar for uploads
+st.sidebar.header("📄 Upload PDF or TXT")
+uploaded_files = st.sidebar.file_uploader("Upload multiple files", accept_multiple_files=True)
+
+st.sidebar.markdown("""
+### 📝 Usage:
+1. Upload your documents  
+2. They will be indexed  
+3. Ask questions  
+4. Answers ONLY from your documents  
+""")
+
+# ================================
+# ChromaDB Setup
+# ================================
 client_chroma = chromadb.Client()
 collection = client_chroma.get_or_create_collection(name="docs")
 
-# ---- READ & INDEX FILES ----
+
+# ================================
+# PROCESS UPLOADED DOCUMENTS
+# ================================
 if uploaded_files:
     for idx, f in enumerate(uploaded_files):
         if f.name.endswith(".pdf"):
             reader = PdfReader(f)
-            full_text = "".join([page.extract_text() or "" for page in reader.pages])
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() or ""
         else:
-            full_text = f.read().decode("utf-8", errors="ignore")
+            text = f.read().decode("utf-8")
 
-        vec = embed_text(full_text)
+        embedding = embed_text(text)
 
         collection.add(
-            ids=[f"doc_{idx}"],
-            documents=[full_text],
-            embeddings=[vec]
+            ids=[str(idx)],
+            documents=[text],
+            embeddings=[embedding]
         )
 
-    st.sidebar.success("📌 Documents indexed successfully!")
+    st.sidebar.success("Documents successfully indexed!")
 
-# ---- CHAT UI ----
+
+# ================================
+# CHAT UI
+# ================================
 st.markdown("---")
-st.subheader("💬 Chat with your document")
+st.subheader("💬 Chat with your Document")
 
-user_input = st.chat_input("Ask a question...")
+# Chat bubbles CSS
+st.markdown("""
+<style>
+.user-msg {
+    background-color: #2b6cb0;
+    color: white;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    max-width: 70%;
+    margin-left: auto;
+}
+.assistant-msg {
+    background-color: #2d2d2d;
+    color: white;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    max-width: 70%;
+    margin-right: auto;
+}
+</style>
+""", unsafe_allow_html=True)
 
-# Display conversation
+# Display previous chat
 for msg in st.session_state.chat_history:
-    role = "user-msg" if msg["role"] == "user" else "assistant-msg"
-    st.markdown(f"<div class='{role}'>{msg['content']}</div>", unsafe_allow_html=True)
+    if msg["role"] == "user":
+        st.markdown(f"<div class='user-msg'>{msg['content']}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='assistant-msg'>{msg['content']}</div>", unsafe_allow_html=True)
 
-if user_input:
-    st.session_state.chat_history.append({"role": "user", "content": user_input})
+# ================================
+# USER INPUT
+# ================================
+user_msg = st.chat_input("Ask a question…")
 
-    q_emb = embed_text(user_input)
+if user_msg:
+    st.session_state.chat_history.append({"role": "user", "content": user_msg})
 
-    results = collection.query(
-        query_embeddings=[q_emb],
-        n_results=3
-    )
+    # Embed query
+    q_embed = embed_text(user_msg)
 
+    # Retrieve top matches
+    results = collection.query(query_embeddings=[q_embed], n_results=3)
     context = "\n\n".join(results["documents"][0]) if results["documents"] else "No context found."
 
+    # Build prompt
     prompt = f"""
-Use ONLY this context to answer:
+Use ONLY the context below to answer.
 
 Context:
 {context}
 
-Question: {user_input}
+Question:
+{user_msg}
 
-Answer:
+Answer clearly:
 """
 
+    # Generate LLM answer
     response = client.models.generate_content(
         model="models/gemini-2.5-flash",
         contents=prompt
     ).text
 
     st.session_state.chat_history.append({"role": "assistant", "content": response})
-
     st.rerun()
+
 
 
