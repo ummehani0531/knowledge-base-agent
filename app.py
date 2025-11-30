@@ -8,7 +8,7 @@ from google import genai
 # ================================
 # 🔐 HARD-CODE YOUR API KEY HERE
 # ================================
-API_KEY = st.secrets["YOUR_API_KEY"]
+API_KEY = st.secrets["API_KEY"]
 # ================================
 
 # ---- SESSION STATE INITIALIZATION ----
