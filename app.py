@@ -5,6 +5,8 @@ from chromadb.utils import embedding_functions
 from pypdf import PdfReader
 from google import genai
 
+
+
 # ================================
 # 🔐 HARD-CODE YOUR API KEY HERE
 # ================================
@@ -45,7 +47,8 @@ st.sidebar.markdown("""
 client = genai.Client(api_key=API_KEY)
 
 # Embedding model
-embedder = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
+
 
 # Vector DB
 client_chroma = chromadb.Client()
