@@ -8,7 +8,7 @@ from google import genai
 # ================================
 # 🔐 HARD-CODE YOUR API KEY HERE
 # ================================
-API_KEY = "YOUR_API_KEY"
+API_KEY = st.secrets["YOUR_API_KEY"]
 # ================================
 
 # ---- SESSION STATE INITIALIZATION ----
@@ -45,14 +45,17 @@ st.sidebar.markdown("""
 client = genai.Client(api_key=API_KEY)
 
 # Embedding model
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+embedder = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
 
 # Vector DB
 client_chroma = chromadb.Client()
 collection = client_chroma.get_or_create_collection(
     name="docs",
-    embedding_function=embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name="all-MiniLM-L6-v2"
+    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+      model_name="all-MiniLM-L6-v2",
+      device="cpu"
+
+
     )
 )
 
